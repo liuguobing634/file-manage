@@ -1,0 +1,63 @@
+# 服务器专用 compose：镜像已经在本地（docker load 进来，或从内网 registry 拉到），
+# 本文件**没有 build 段**，因此 docker compose up -d 绝不会触发构建，
+# 服务器上也不需要源码 / Dockerfile / npm / 外网。
+#
+# 用法：
+#   1) 把本文件与 .env 放到服务器同一个目录（.env 见 .env.example，至少要有
+#      ADMIN_PASSWORD、JWT_SECRET、ALLOWED_ROOTS）
+#   2) docker load -i file-manage-1.0.0.tar        （或 docker pull 内网 registry 地址）
+#   3) docker compose -f docker-compose.server.yml up -d
+#
+# 若镜像名/标签与下面的 image 不一致，请改这里，或 docker tag 成一致的名字。
+services:
+  file-manage:
+    # 内网 registry 场景直接写完整地址，例如：
+    #   image: harbor.intranet/tools/file-manage:1.0.0
+    image: ${IMAGE:-file-manage:1.0.0}
+    # 纯离线环境可打开下面一行：镜像不存在时直接报错，而不是尝试访问 docker.io
+    # pull_policy: never
+    container_name: file-manage
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      # ---- 登录账号（启动时指定）----
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?请在 .env 中设置 ADMIN_PASSWORD}
+      # 也可以改用哈希：ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH}
+      # ---- 令牌 ----
+      JWT_SECRET: ${JWT_SECRET:?请在 .env 中设置 JWT_SECRET（建议 32 位以上随机串）}
+      JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-7200}
+      # ---- 允许管理的文件夹（多选，容器内绝对路径，逗号分隔）----
+      ALLOWED_ROOTS: ${ALLOWED_ROOTS:-/data}
+      # ---- 服务 ----
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      TZ: ${TZ:-Asia/Shanghai}
+      # ---- 状态目录（TOTP 密钥 / 审计日志），必须落在卷上 ----
+      DATA_DIR: /var/lib/file-manage
+      TOTP_ISSUER: ${TOTP_ISSUER:-file-manage}
+      TOTP_PREVENT_REPLAY: ${TOTP_PREVENT_REPLAY:-true}
+    # 容器默认以非 root 的 node(uid=1000) 运行。若宿主目录属主不是 1000 且没有放开权限，
+    # 表现就是「挂载目录不可读 / 删除失败 / TOTP 无法保存」。按需选一种：
+    # user: "1000:1000"        # 与宿主属主一致（把宿主目录 chown 给这个 uid 也可以）
+    # user: "0:0"              # 图省事：以 root 运行（放弃非 root 加固）
+    # group_add: ["0"]         # 宿主目录是 root:root 且组有权限时，追加该组即可读
+    volumes:
+      # 被管理的目录：按需增删。只读挂载（:ro）可以进一步降低误删风险
+      - ${MANAGED_DIR_1:-./data}:/data
+      # 例如再挂一个日志目录：
+      # - /var/log:/logs:ro
+      # 状态目录：容器重建后 TOTP 绑定与审计日志仍然保留
+      # 用命名卷最省心（Docker 会把属主初始化成容器用户）；bind mount 则必须对 uid 1000 可写
+      - file-manage-state:/var/lib/file-manage
+      # - /data/file-manage-state:/var/lib/file-manage
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  file-manage-state:

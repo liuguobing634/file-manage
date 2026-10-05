@@ -1,0 +1,39 @@
+{
+  "name": "file-manage",
+  "version": "1.0.0",
+  "private": true,
+  "description": "服务器磁盘文件管理运维服务：多目录浏览 / 下载 / 删除 + 账号密码登录 Token + TOTP 二次验证",
+  "type": "module",
+  "main": "dist/server.js",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --import tsx --test \"test/*.test.ts\"",
+    "smoke": "node scripts/smoke.mjs",
+    "totp": "node dist/cli/totp.js",
+    "totp:status": "node dist/cli/totp.js status",
+    "totp:reset": "node dist/cli/totp.js reset",
+    "doctor": "node dist/cli/doctor.js",
+    "hash-password": "node dist/cli/hash-password.js"
+  },
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/archiver": "^6.0.3",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.10.2",
+    "@types/qrcode": "^1.5.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

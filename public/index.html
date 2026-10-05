@@ -1,0 +1,1215 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<title>file-manage · 服务器文件管理控制台</title>
+<style>
+  :root {
+    --bg: #f4f6fa; --panel: #ffffff; --panel2: #f8fafc; --bd: #dfe4ec; --bd2: #c8d0dd;
+    --tx: #18202f; --mut: #64748b; --pri: #2563eb; --pri-h: #1d4ed8; --pri-tx: #ffffff;
+    --ok: #0f7b46; --ok-bg: #e7f7ee; --warn: #8a5300; --warn-bg: #fdf3e0; --err: #b42318;
+    --err-bg: #fdeceb; --info-bg: #e8f0fe; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 4px 14px rgba(16,24,40,.06);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e131b; --panel: #161d28; --panel2: #1b2431; --bd: #2a3547; --bd2: #3a475d;
+      --tx: #e6ecf5; --mut: #94a3b8; --pri: #3b82f6; --pri-h: #60a5fa; --pri-tx: #08111d;
+      --ok: #4ade80; --ok-bg: #12301f; --warn: #fbbf24; --warn-bg: #33280d; --err: #f87171;
+      --err-bg: #3a1a19; --info-bg: #16273f; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.3);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--tx); min-height: 100vh;
+    font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  a { color: var(--pri); }
+  h1, h2, h3 { margin: 0; line-height: 1.3; }
+  .hidden { display: none !important; }
+  .mono { font-family: var(--mono); }
+  .mut { color: var(--mut); }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 16px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .grow { flex: 1 1 auto; min-width: 0; }
+
+  /* ---------- form controls ---------- */
+  input, select, textarea, button { font: inherit; color: inherit; }
+  input[type=text], input[type=password], input[type=number], textarea, select {
+    background: var(--panel); border: 1px solid var(--bd2); border-radius: 8px;
+    padding: 8px 10px; width: 100%; outline: none;
+  }
+  input:focus, textarea:focus, select:focus { border-color: var(--pri); box-shadow: 0 0 0 3px var(--info-bg); }
+  textarea { resize: vertical; font-family: var(--mono); font-size: 13px; }
+  label.f { display: block; font-size: 12px; color: var(--mut); margin: 0 0 4px; }
+  .btn {
+    background: var(--panel); border: 1px solid var(--bd2); border-radius: 8px;
+    padding: 8px 13px; cursor: pointer; white-space: nowrap; transition: background .15s, border-color .15s;
+  }
+  .btn:hover { background: var(--panel2); border-color: var(--pri); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn.pri { background: var(--pri); border-color: var(--pri); color: var(--pri-tx); font-weight: 600; }
+  .btn.pri:hover { background: var(--pri-h); border-color: var(--pri-h); }
+  .btn.danger { background: var(--err); border-color: var(--err); color: #fff; font-weight: 600; }
+  .btn.danger:hover { filter: brightness(1.08); }
+  .btn.sm { padding: 4px 9px; font-size: 12px; border-radius: 7px; }
+  .btn.link { background: none; border: none; color: var(--pri); padding: 2px 4px; text-decoration: underline; }
+
+  /* ---------- login ---------- */
+  #login { max-width: 380px; margin: 9vh auto 40px; background: var(--panel); border: 1px solid var(--bd);
+    border-radius: 14px; padding: 26px; box-shadow: var(--shadow); }
+  #login h1 { font-size: 19px; margin-bottom: 4px; }
+  #login .sub { color: var(--mut); font-size: 12px; margin-bottom: 20px; }
+  #login .fld { margin-bottom: 14px; }
+  .brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
+  .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--pri); box-shadow: 0 0 0 4px var(--info-bg); }
+
+  /* ---------- header ---------- */
+  header.bar { position: sticky; top: 0; z-index: 40; background: var(--panel); border-bottom: 1px solid var(--bd); }
+  header.bar .inner { max-width: 1240px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 9px; border-radius: 999px;
+    border: 1px solid var(--bd2); background: var(--panel2); color: var(--mut); }
+  .chip.ok { color: var(--ok); background: var(--ok-bg); border-color: transparent; }
+  .chip.warn { color: var(--warn); background: var(--warn-bg); border-color: transparent; }
+
+  /* ---------- panels ---------- */
+  .panel { background: var(--panel); border: 1px solid var(--bd); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 16px; overflow: hidden; }
+  .panel > h2 { font-size: 15px; padding: 13px 16px; border-bottom: 1px solid var(--bd); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .sp { flex: 1 1 auto; }
+  .panel .body { padding: 14px 16px; }
+  .hint { font-size: 12px; color: var(--mut); }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+
+  /* ---------- tables ---------- */
+  .tw { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--bd); vertical-align: middle; }
+  th { background: var(--panel2); color: var(--mut); font-weight: 600; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--pri); }
+  th .arw { font-size: 10px; color: var(--pri); }
+  tbody tr:hover { background: var(--panel2); }
+  td.tight, th.tight { width: 1%; white-space: nowrap; }
+  .trunc td { max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .scroll-y { max-height: 46vh; overflow-y: auto; }
+  .empty { padding: 14px; text-align: center; color: var(--mut); }
+
+  /* ---------- roots ---------- */
+  .roots { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+  .root { text-align: left; background: var(--panel2); border: 1px solid var(--bd); border-radius: 9px; padding: 11px 13px; cursor: pointer; }
+  .root:hover { border-color: var(--pri); }
+  .root .p { font-family: var(--mono); font-size: 12.5px; word-break: break-all; margin-bottom: 6px; }
+  .bar-bg { height: 6px; background: var(--bd); border-radius: 4px; overflow: hidden; margin: 6px 0 5px; }
+  .bar-fg { height: 100%; background: var(--pri); }
+  .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; font-size: 13px; }
+  .crumbs button { background: none; border: none; color: var(--pri); cursor: pointer; padding: 2px 4px; border-radius: 5px; font-family: var(--mono); font-size: 12.5px; }
+  .crumbs button:hover { background: var(--info-bg); text-decoration: underline; }
+  .crumbs .sep { color: var(--mut); }
+
+  /* ---------- notices / toast ---------- */
+  .notice { border-radius: 8px; padding: 9px 12px; font-size: 12.5px; margin: 10px 16px; border: 1px solid transparent; }
+  .notice.warn { background: var(--warn-bg); color: var(--warn); }
+  .notice.err { background: var(--err-bg); color: var(--err); }
+  .notice.ok { background: var(--ok-bg); color: var(--ok); }
+  .notice ul { margin: 5px 0 0; padding-left: 18px; }
+  .notice li { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+  #toasts { position: fixed; right: 14px; bottom: 14px; z-index: 100; display: flex; flex-direction: column; gap: 8px; max-width: min(360px, 92vw); }
+  .toast { background: var(--panel); border: 1px solid var(--bd2); border-left: 4px solid var(--pri); border-radius: 9px;
+    padding: 10px 12px; box-shadow: var(--shadow); font-size: 13px; display: flex; gap: 10px; align-items: flex-start; animation: pop .18s ease-out; }
+  .toast.ok { border-left-color: var(--ok); }
+  .toast.err { border-left-color: var(--err); }
+  .toast.warn { border-left-color: var(--warn); }
+  .toast .msg { flex: 1 1 auto; word-break: break-word; white-space: pre-wrap; }
+  .toast .x { cursor: pointer; color: var(--mut); background: none; border: none; font-size: 15px; line-height: 1; padding: 0 2px; }
+  @keyframes pop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  /* ---------- modal ---------- */
+  .mask { position: fixed; inset: 0; background: rgba(9,14,22,.58); z-index: 90; display: flex; align-items: flex-start;
+    justify-content: center; padding: 20px 12px; overflow-y: auto; }
+  .modal { background: var(--panel); border: 1px solid var(--bd2); border-radius: 12px; width: 100%; max-width: 560px;
+    box-shadow: 0 20px 50px rgba(0,0,0,.35); }
+  .modal .mh { padding: 14px 16px; border-bottom: 1px solid var(--bd); display: flex; align-items: center; gap: 8px; }
+  .modal .mh h3 { font-size: 15px; color: var(--err); }
+  .modal .mb { padding: 14px 16px; }
+  .modal .mf { padding: 12px 16px; border-top: 1px solid var(--bd); display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+  .pathlist { max-height: 180px; overflow: auto; border: 1px solid var(--bd); border-radius: 8px; background: var(--panel2); margin: 6px 0 14px; }
+  .pathlist div { font-family: var(--mono); font-size: 12px; padding: 5px 10px; border-bottom: 1px solid var(--bd); word-break: break-all; }
+  .pathlist div:last-child { border-bottom: none; }
+  .cbx { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+  input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--pri); cursor: pointer; }
+
+  /* ---------- totp / help ---------- */
+  img.qr { width: 168px; height: 168px; background: #fff; border: 1px solid var(--bd2); border-radius: 9px; padding: 6px; image-rendering: pixelated; }
+  .secret { font-family: var(--mono); font-size: 14px; letter-spacing: .06em; background: var(--panel2); border: 1px dashed var(--bd2);
+    border-radius: 8px; padding: 9px 11px; word-break: break-all; }
+  details.help { background: var(--panel); border: 1px solid var(--bd); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 22px; }
+  details.help > summary { cursor: pointer; padding: 13px 16px; font-weight: 600; font-size: 15px; list-style: none; }
+  details.help > summary::-webkit-details-marker { display: none; }
+  details.help > summary::before { content: "▸ "; color: var(--pri); }
+  details.help[open] > summary::before { content: "▾ "; }
+  details.help .in { padding: 0 16px 14px; border-top: 1px solid var(--bd); }
+  code { font-family: var(--mono); background: var(--panel2); border: 1px solid var(--bd); border-radius: 5px; padding: 1px 5px; font-size: 12.5px; word-break: break-all; }
+  .badge { font-size: 11px; padding: 2px 7px; border-radius: 6px; background: var(--panel2); border: 1px solid var(--bd2); color: var(--mut); font-family: var(--mono); }
+  .method { font-family: var(--mono); font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 5px; background: var(--info-bg); color: var(--pri); }
+  .foot { text-align: center; color: var(--mut); font-size: 12px; padding: 8px 0 26px; }
+
+  @media (max-width: 720px) {
+    .wrap { padding: 12px 10px; }
+    header.bar .inner { padding: 9px 10px; gap: 8px; }
+    .panel > h2 { padding: 11px 12px; }
+    .panel .body { padding: 12px; }
+    .notice { margin: 10px 12px; }
+    .trunc td { max-width: 180px; }
+    .modal .mf { flex-direction: column-reverse; }
+    .modal .mf .btn { width: 100%; }
+    #login { margin: 4vh 10px 30px; padding: 20px; }
+    .scroll-y { max-height: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ======================= 登录 ======================= -->
+<main id="login">
+  <h1><span class="brand"><span class="dot"></span>file-manage</span></h1>
+  <div class="sub">服务器磁盘文件管理控制台 · 请登录</div>
+  <form id="loginForm" autocomplete="on">
+    <div class="fld">
+      <label class="f" for="lgUser">用户名</label>
+      <input id="lgUser" name="username" type="text" autocomplete="username" required />
+    </div>
+    <div class="fld">
+      <label class="f" for="lgPass">密码</label>
+      <input id="lgPass" name="password" type="password" autocomplete="current-password" required />
+    </div>
+    <button class="btn pri" id="lgBtn" type="submit" style="width:100%">登录</button>
+  </form>
+  <div id="loginMsg" class="notice err hidden" style="margin:14px 0 0"></div>
+</main>
+
+<!-- ======================= 主界面 ======================= -->
+<div id="app" class="hidden">
+  <header class="bar">
+    <div class="inner">
+      <span class="brand"><span class="dot"></span>file-manage</span>
+      <span class="chip" id="hdrUser">—</span>
+      <span class="chip" id="hdrTotp">TOTP —</span>
+      <span class="sp"></span>
+      <button class="btn sm" id="btnRefreshAll" type="button">刷新</button>
+      <button class="btn sm" id="btnLogout" type="button">退出登录</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+
+    <!-- 根目录 -->
+    <section class="panel">
+      <h2>授权根目录 <span class="mut" id="rootsCount"></span><span class="sp"></span>
+        <button class="btn sm" id="btnRootsReload" type="button">重新加载</button></h2>
+      <div class="body"><div id="rootsBox" class="roots"></div></div>
+    </section>
+
+    <!-- 浏览 -->
+    <section class="panel">
+      <h2>目录浏览<span class="sp"></span>
+        <button class="btn sm" id="btnUp" type="button">上一级</button>
+        <button class="btn sm" id="btnBrowseReload" type="button">刷新本目录</button></h2>
+      <div class="body">
+        <div class="row" style="margin-bottom:10px">
+          <div class="crumbs grow" id="crumbs"></div>
+        </div>
+        <div class="row" style="margin-bottom:10px">
+          <input type="text" id="pathInput" class="mono" placeholder="/data/sub（绝对路径）" style="max-width:420px" />
+          <button class="btn sm" id="btnGo" type="button">跳转</button>
+          <label class="cbx" style="margin-left:6px"><input type="checkbox" id="showHidden" /> 显示隐藏项</label>
+        </div>
+        <div class="row" style="margin-bottom:8px">
+          <span class="hint">已选 <b id="selCount">0</b> 项</span>
+          <button class="btn sm" id="btnAll" type="button">全选</button>
+          <button class="btn sm" id="btnInvert" type="button">反选</button>
+          <button class="btn sm" id="btnClear" type="button">清空</button>
+          <button class="btn sm" id="btnDownload" type="button">下载选中</button>
+          <button class="btn sm danger" id="btnDelete" type="button">删除选中（高危）</button>
+        </div>
+      </div>
+      <div class="tw scroll-y">
+        <table>
+          <thead><tr>
+            <th class="tight"><input type="checkbox" id="chkAllHead" title="全选/清空" /></th>
+            <th>名称</th><th class="tight">类型</th><th class="tight">大小</th><th class="tight">修改时间</th>
+          </tr></thead>
+          <tbody id="browseBody"></tbody>
+        </table>
+      </div>
+      <div id="browseEmpty" class="empty hidden">此目录为空，或尚未选择目录。</div>
+    </section>
+
+    <!-- 搜索 -->
+    <section class="panel">
+      <h2>搜索 / 递归列举</h2>
+      <div class="body">
+        <form id="searchForm">
+          <div class="grid" style="margin-bottom:10px">
+            <div>
+              <label class="f" for="fExt">扩展名（逗号分隔，可省略点）</label>
+              <input id="fExt" type="text" placeholder=".log,.gz" />
+            </div>
+            <div>
+              <label class="f" for="fName">文件名包含</label>
+              <input id="fName" type="text" placeholder="error" />
+            </div>
+            <div>
+              <label class="f" for="fMin">最小字节（空=不限）</label>
+              <input id="fMin" type="number" min="0" step="1" placeholder="0" />
+            </div>
+            <div>
+              <label class="f" for="fMax">最大字节（空=不限）</label>
+              <input id="fMax" type="number" min="0" step="1" placeholder="0" />
+            </div>
+            <div>
+              <label class="f" for="fLimit">结果上限 limit</label>
+              <input id="fLimit" type="number" min="1" step="1" value="5000" />
+            </div>
+          </div>
+          <div>
+            <label class="f" for="fPaths">搜索路径（逗号或换行分隔；<code>@roots</code> = 全部根目录；留空 = 当前目录）</label>
+            <textarea id="fPaths" rows="2" placeholder="@roots"></textarea>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <label class="cbx"><input type="checkbox" id="fRecursive" checked /> 递归子目录</label>
+            <button class="btn pri" id="btnSearch" type="submit">开始搜索</button>
+            <span class="hint" id="searchStat"></span>
+          </div>
+        </form>
+        <div id="searchNotice" class="notice warn hidden" style="margin:12px 0 0"></div>
+      </div>
+      <div class="tw">
+        <table>
+          <thead><tr>
+            <th class="tight"><input type="checkbox" id="chkResHead" title="全选/清空搜索结果" /></th>
+            <th class="sortable" data-k="path">路径 <span class="arw"></span></th>
+            <th class="sortable tight" data-k="size">大小 <span class="arw"></span></th>
+            <th class="sortable tight" data-k="mtime">修改时间 <span class="arw"></span></th>
+            <th class="sortable tight" data-k="type">类型 <span class="arw"></span></th>
+          </tr></thead>
+          <tbody id="resBody"></tbody>
+        </table>
+      </div>
+      <div id="resEmpty" class="empty">尚未搜索。</div>
+    </section>
+
+    <!-- TOTP -->
+    <section class="panel">
+      <h2>TOTP 二次验证<span class="sp"></span><span id="totpChip" class="chip">—</span>
+        <button class="btn sm" id="btnTotpReload" type="button">刷新状态</button></h2>
+      <div class="body" id="totpBody"></div>
+    </section>
+
+    <!-- API 速查 -->
+    <details class="help">
+      <summary>API 速查</summary>
+      <div class="in">
+        <p class="hint" style="margin:10px 0">除 <code>/healthz</code>、<code>/api/auth/login</code> 与静态资源外，均需 <code>Authorization: Bearer &lt;token&gt;</code>；<code>/api/files/download</code> 与 <code>/api/totp/qrcode</code> 额外支持 <code>?token=</code>。</p>
+        <div class="tw"><table><thead><tr><th class="tight">方法</th><th>端点</th><th>说明</th></tr></thead><tbody id="helpBody"></tbody></table></div>
+      </div>
+    </details>
+
+    <div class="foot">file-manage 控制台 · 高危操作需 TOTP 二次验证</div>
+  </div>
+</div>
+
+<!-- ======================= 删除确认 ======================= -->
+<div class="mask hidden" id="delMask">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="delTitle">
+    <div class="mh"><h3 id="delTitle">⚠ 高危操作确认：删除</h3></div>
+    <div class="mb">
+      <div class="hint">以下 <b id="delCount">0</b> 个路径将被永久删除，此操作不可撤销：</div>
+      <div class="pathlist" id="delPaths"></div>
+      <label class="cbx" style="margin-bottom:12px"><input type="checkbox" id="delRecursive" /> 递归删除目录内容</label>
+      <label class="f" for="delTotp">TOTP 验证码（6 位数字，30 秒内有效且不可重放）</label>
+      <input id="delTotp" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" class="mono" style="letter-spacing:.25em" />
+      <div id="delMsg" class="notice err hidden" style="margin:12px 0 0"></div>
+      <div id="delResult" class="hidden" style="margin-top:12px"></div>
+    </div>
+    <div class="mf">
+      <button class="btn" id="delCancel" type="button">取消</button>
+      <button class="btn danger" id="delConfirm" type="button">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+"use strict";
+(function () {
+  /* ===================================================================== */
+  /* 1. 基础工具                                                           */
+  /* ===================================================================== */
+  const $ = (id) => document.getElementById(id);
+  const TOKEN_KEY = "fm_token";
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function fmtBytes(n) {
+    n = Number(n);
+    if (!isFinite(n) || n < 0) return "—";
+    if (n < 1024) return n + " B";
+    const u = ["KB", "MB", "GB", "TB", "PB"], i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), u.length) - 1;
+    const v = n / Math.pow(1024, i + 1);
+    return (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2)) + " " + u[i];
+  }
+  function fmtTime(s) {
+    if (!s) return "—";
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return String(s);
+    const p = (x) => String(x).padStart(2, "0");
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " +
+           p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+  }
+  function typeLabel(t) { return t === "dir" ? "目录" : t === "file" ? "文件" : (t || "—"); }
+  function uniq(arr) { const o = [], s = new Set(); for (const x of arr) if (x && !s.has(x)) { s.add(x); o.push(x); } return o; }
+
+  function toast(msg, kind, title) {
+    const box = $("toasts"), el = document.createElement("div");
+    el.className = "toast " + (kind === "ok" ? "ok" : kind === "err" ? "err" : kind === "warn" ? "warn" : "");
+    const m = document.createElement("div"); m.className = "msg";
+    if (title) { const b = document.createElement("b"); b.textContent = title + "："; m.appendChild(b); }
+    m.appendChild(document.createTextNode(String(msg)));
+    const x = document.createElement("button"); x.className = "x"; x.type = "button"; x.textContent = "×"; x.setAttribute("aria-label", "关闭");
+    x.addEventListener("click", () => el.remove());
+    el.append(m, x); box.appendChild(el);
+    setTimeout(() => el.remove(), kind === "err" ? 8000 : 4500);
+  }
+  const ok = (m) => toast(m, "ok"), err = (m) => toast(m, "err", "错误"), warn = (m) => toast(m, "warn");
+
+  function fillRows(tbody, headers, rows) {
+    tbody.textContent = "";
+    for (const r of rows) {
+      const tr = document.createElement("tr");
+      r.forEach((c, i) => {
+        const cell = document.createElement("td");
+        if (c && typeof c === "object" && c.nodeType) cell.appendChild(c);
+        else cell.textContent = c == null ? "—" : String(c);
+        if (i === 0 && headers) cell.title = String(r[0]);
+        tr.appendChild(cell);
+      });
+      tbody.appendChild(tr);
+    }
+  }
+  function cellLink(text, on) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "btn link mono"; b.textContent = text;
+    b.addEventListener("click", on);
+    return b;
+  }
+  function notice(el, kind, text, list) {
+    el.textContent = "";
+    if (!kind) { el.classList.add("hidden"); return; }
+    el.className = "notice " + kind;
+    el.appendChild(document.createTextNode(text));
+    if (list && list.length) {
+      const ul = document.createElement("ul");
+      for (const li of list) { const n = document.createElement("li"); n.textContent = li; ul.appendChild(n); }
+      el.appendChild(ul);
+    }
+  }
+
+  /* ===================================================================== */
+  /* 2. 认证与 API 封装                                                    */
+  /* ===================================================================== */
+  function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (e) { return ""; } }
+  function setToken(t) { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch (e) {} }
+  function logoutLocal(msg) {
+    setToken(""); state.username = ""; state.browser.path = ""; state.sel.clear(); state.browser.entries = [];
+    state.results = []; state.totp = null; state.setup = null;
+    renderBrowse(); renderResults(); renderSelection(); renderCrumbs("");
+    $("app").classList.add("hidden"); $("login").classList.remove("hidden");
+    if (msg) notice($("loginMsg"), "warn", msg);
+  }
+  function showLoginError(text) { notice($("loginMsg"), "err", text); }
+
+  async function readError(res) {
+    const ct = res.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
+      try {
+        const j = await res.json();
+        const e = j && j.error ? j.error : {};
+        return { code: e.code || "", message: e.message || "", details: e.details, json: j };
+      } catch (e) { /* 非 JSON 或解析失败 */ }
+    }
+    return { code: "", message: (res.statusText || "请求失败") + "（HTTP " + res.status + "）", details: null };
+  }
+  function rateLimited(res, e) {
+    const ra = res.headers.get("retry-after");
+    const extra = ra ? "，请 " + ra + " 秒后重试" : "";
+    return (e.message || "请求过于频繁") + (e.code ? "（" + e.code + "）" : "") + extra;
+  }
+
+  async function apiFetch(path, opts) {
+    opts = opts || {};
+    const h = Object.assign({}, opts.headers || {});
+    const tk = getToken();
+    if (tk) h.Authorization = "Bearer " + tk;
+    if (opts.json !== undefined) { h["Content-Type"] = "application/json"; opts.body = JSON.stringify(opts.json); }
+    let res;
+    try { res = await fetch(path, { method: opts.method || "GET", headers: h, body: opts.body }); }
+    catch (e) { throw new Error("网络错误：无法连接服务器（" + (e && e.message ? e.message : e) + "）"); }
+    if (res.status === 401 && !opts.noAuthRedirect) {
+      logoutLocal("登录状态已失效，请重新登录");
+      const e = { message: "登录状态已失效，请重新登录", code: "TOKEN_INVALID" };
+      throw Object.assign(new Error(e.message), { api: e, res: res });
+    }
+    if (!res.ok) {
+      const e = await readError(res);
+      if (res.status === 429) e.message = rateLimited(res, e);
+      throw Object.assign(new Error(e.message || ("HTTP " + res.status)), { api: e, res: res });
+    }
+    if (opts.raw) return res;
+    if (res.status === 204) return {};
+    try { return await res.json(); } catch (e) { return {}; }
+  }
+  const api = {
+    get: (p, o) => apiFetch(p, o),
+    post: (p, json, o) => apiFetch(p, Object.assign({ method: "POST", json: json }, o)),
+  };
+  function apiErr(e) {
+    if (e && e.api && e.api.code === "RATE_LIMITED") return e.api.message;
+    return (e && e.message) ? e.message : String(e);
+  }
+
+  /* ===================================================================== */
+  /* 3. 全局状态                                                           */
+  /* ===================================================================== */
+  const state = {
+    username: "",
+    roots: [],
+    browser: { path: "", parent: null, root: "", entries: [], data: null },
+    sel: new Map(),                       // path -> type
+    results: [], resSort: { k: "path", dir: 1 },
+    totp: null,
+    setup: null,                          // POST /api/totp/setup 的本次返回（secret / qrCodeDataUrl）
+    ready: false,
+  };
+
+  /* ===================================================================== */
+  /* 4. 登录 / 登出                                                        */
+  /* ===================================================================== */
+  $("loginForm").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const u = $("lgUser").value.trim(), p = $("lgPass").value, btn = $("lgBtn");
+    notice($("loginMsg"), false);
+    btn.disabled = true; btn.textContent = "登录中…";
+    try {
+      const r = await api.post("/api/auth/login", { username: u, password: p }, { noAuthRedirect: true });
+      if (!r || !r.token) throw new Error("响应中缺少 token 字段");
+      setToken(r.token);
+      $("lgPass").value = "";
+      await enterApp();
+    } catch (e) {
+      const code = e && e.api ? e.api.code : "";
+      showLoginError(code === "INVALID_CREDENTIALS" ? (e.api.message || "账号或密码错误")
+        : code === "RATE_LIMITED" ? apiErr(e)
+        : code ? (e.api.message + "（" + code + "）") : apiErr(e));
+    } finally { btn.disabled = false; btn.textContent = "登录"; }
+  });
+
+  $("btnLogout").addEventListener("click", async () => {
+    try { await api.post("/api/auth/logout", {}); } catch (e) { /* 即使失败也本地登出 */ }
+    logoutLocal(""); ok("已退出登录");
+    $("lgUser").focus();
+  });
+
+  async function enterApp() {
+    $("login").classList.add("hidden"); $("app").classList.remove("hidden");
+    notice($("loginMsg"), false);
+    $("hdrUser").textContent = "用户 —";
+    $("hdrTotp").textContent = "TOTP —";
+    $("hdrTotp").className = "chip";
+    setBrowserPath("", true);
+    await Promise.all([loadMe(), loadRoots(), loadTotp(), loadSystemInfo()]);
+  }
+
+  async function loadMe() {
+    try {
+      const me = await api.get("/api/auth/me");
+      state.username = me.username || "";
+      $("hdrUser").textContent = "用户 " + (me.username || "—");
+    } catch (e) { err(apiErr(e)); }
+  }
+
+  async function loadSystemInfo() {
+    try {
+      const s = await api.get("/api/system/info");
+      document.title = "file-manage " + (s.version || "") + " · 控制台";
+    } catch (e) { /* 非关键 */ }
+  }
+
+  function renderTotpChip(configured, enabled) {
+    const el = $("hdrTotp");
+    el.textContent = enabled ? "TOTP 已启用" : configured ? "TOTP 未启用（已生成密钥）" : "TOTP 未启用";
+    el.className = "chip " + (enabled ? "ok" : "warn");
+    const p = $("totpChip");
+    p.textContent = enabled ? "已启用" : configured ? "已生成未激活" : "未配置";
+    p.className = "chip " + (enabled ? "ok" : "warn");
+  }
+
+  /* ===================================================================== */
+  /* 5. 授权根目录                                                         */
+  /* ===================================================================== */
+  async function loadRoots() {
+    const box = $("rootsBox");
+    box.textContent = "加载中…";
+    try {
+      const r = await api.get("/api/roots");
+      state.roots = Array.isArray(r.roots) ? r.roots : [];
+      $("rootsCount").textContent = "（" + state.roots.length + "）";
+      box.textContent = "";
+      if (!state.roots.length) { box.className = "roots"; box.textContent = "未配置任何授权根目录（ALLOWED_ROOTS）。"; return; }
+      for (const root of state.roots) {
+        const total = Number(root.totalBytes) || 0, free = Number(root.freeBytes) || 0;
+        const used = total > 0 ? Math.max(0, total - free) : 0;
+        const pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "root";
+        const owner = (root.uid === null || root.uid === undefined) ? "" : esc(String(root.uid)) + ":" + esc(String(root.gid));
+        const perm = root.mode ? esc(String(root.mode)) : "";
+        const problemBits = [];
+        if (root.exists === false) problemBits.push("不存在");
+        if (root.exists !== false && root.traversable === false) problemBits.push("无进入权限(x)");
+        else if (root.exists !== false && root.readable === false) problemBits.push("不可读");
+        if (root.exists !== false && root.writable === false) problemBits.push("不可写(无法删除)");
+        b.innerHTML =
+          '<div class="p">' + esc(root.path) + "</div>" +
+          '<div class="hint">' +
+            (problemBits.length
+              ? '<span class="chip warn">' + esc(problemBits.join(" / ")) + "</span> "
+              : '<span class="chip ok">可读写</span> ') +
+            (owner ? "属主 " + owner + (perm ? " 权限 " + perm : "") + " · " : "") +
+            (total > 0 ? "已用 " + esc(fmtBytes(used)) + " / 总 " + esc(fmtBytes(total)) + "（" + pct + "%）· 可用 " + esc(fmtBytes(free))
+                       : "容量信息不可用") +
+          "</div>" +
+          (problemBits.length
+            ? '<div class="hint">挂载目录需要让容器用户（默认 uid 1000）可读/可写：' +
+              "<code>chown -R 1000:1000 &lt;宿主目录&gt;</code>、或挂载加 <code>:z</code>（SELinux）、" +
+              '或在 compose 里加 <code>user: "0:0"</code></div>'
+            : "") +
+          (total > 0 ? '<div class="bar-bg"><div class="bar-fg" style="width:' + pct + '%"></div></div>' : "") +
+          '<div class="hint mono">id: ' + esc(root.id || "-") + "</div>";
+        b.addEventListener("click", () => setBrowserPath(root.path, true));
+        box.appendChild(b);
+      }
+    } catch (e) {
+      box.textContent = ""; err("读取根目录失败：" + apiErr(e));
+    }
+  }
+
+  /* ===================================================================== */
+  /* 6. 目录浏览                                                           */
+  /* ===================================================================== */
+  function renderCrumbs(path) {
+    const box = $("crumbs");
+    box.textContent = "";
+    if (!path) { box.textContent = "未选择目录，请点击上方授权根目录。"; box.className = "crumbs mut"; return; }
+    box.className = "crumbs";
+    const parts = String(path).split("/").filter(Boolean);
+    const acc = [];
+    // "/" 根
+    const rootBtn = document.createElement("button");
+    rootBtn.type = "button"; rootBtn.textContent = "/";
+    rootBtn.addEventListener("click", () => setBrowserPath("/", true));
+    box.appendChild(rootBtn);
+    parts.forEach((seg, i) => {
+      acc.push(seg);
+      const full = "/" + acc.join("/");
+      const sep = document.createElement("span"); sep.className = "sep"; sep.textContent = "›";
+      box.appendChild(sep);
+      if (i === parts.length - 1) {
+        const cur = document.createElement("b"); cur.className = "mono"; cur.textContent = seg;
+        box.appendChild(cur);
+      } else {
+        box.appendChild(cellLink(seg, () => setBrowserPath(full, true)));
+      }
+    });
+  }
+
+  function renderSelection() {
+    $("selCount").textContent = String(state.sel.size);
+    const total = state.browser.entries.length;
+    const all = $("chkAllHead");
+    all.checked = total > 0 && state.browser.entries.every((e) => state.sel.has(e.path));
+    all.indeterminate = !all.checked && state.sel.size > 0;
+  }
+
+  function renderBrowse() {
+    const tb = $("browseBody"), entries = state.browser.entries || [];
+    tb.textContent = "";
+    const empty = $("browseEmpty");
+    if (!entries.length) { empty.classList.remove("hidden"); empty.textContent = state.browser.path ? "此目录为空。" : "尚未选择目录。"; }
+    else empty.classList.add("hidden");
+    for (const en of entries) {
+      const tr = document.createElement("tr");
+
+      const tdC = document.createElement("td"); tdC.className = "tight";
+      const cb = document.createElement("input");
+      cb.type = "checkbox"; cb.checked = state.sel.has(en.path);
+      cb.setAttribute("aria-label", "选择 " + (en.name || en.path));
+      cb.addEventListener("change", () => {
+        if (cb.checked) state.sel.set(en.path, en.type); else state.sel.delete(en.path);
+        renderSelection();
+      });
+      tdC.appendChild(cb); tr.appendChild(tdC);
+
+      const tdN = document.createElement("td"); tdN.className = "trunc";
+      if (en.type === "dir") tdN.appendChild(cellLink(en.name, () => setBrowserPath(en.path, true)));
+      else {
+        const sp = document.createElement("span"); sp.className = "mono"; sp.textContent = en.name;
+        sp.title = en.path; tdN.appendChild(sp);
+      }
+      tr.appendChild(tdN);
+
+      const tdT = document.createElement("td"); tdT.className = "tight";
+      const chip = document.createElement("span"); chip.className = "chip"; chip.textContent = typeLabel(en.type);
+      if (en.isSymlink) { chip.textContent += " · 链接"; chip.className = "chip warn"; }
+      tdT.appendChild(chip); tr.appendChild(tdT);
+
+      const tdS = document.createElement("td"); tdS.className = "tight";
+      tdS.textContent = en.type === "dir" ? "—" : fmtBytes(en.size);
+      tr.appendChild(tdS);
+
+      const tdM = document.createElement("td"); tdM.className = "tight"; tdM.textContent = fmtTime(en.mtime);
+      tr.appendChild(tdM);
+
+      tb.appendChild(tr);
+    }
+    renderSelection();
+  }
+
+  function setBrowserPath(p, load) {
+    state.browser.path = p || "";
+    $("pathInput").value = p || "";
+    if (p) {
+      if (state.sel.size) { state.sel.clear(); if (state.ready) renderResults(); }
+    } else state.browser.entries = [];
+    renderCrumbs(state.browser.path);
+    if (load) loadBrowse();
+    else renderBrowse();
+  }
+
+  async function loadBrowse() {
+    const p = state.browser.path;
+    if (!p) { state.browser.entries = []; renderBrowse(); return; }
+    const body = $("browseBody");
+    body.textContent = "";
+    const tr = document.createElement("tr"), td = document.createElement("td");
+    td.colSpan = 5; td.className = "empty"; td.textContent = "加载中…"; tr.appendChild(td); body.appendChild(tr);
+    try {
+      const q = "?path=" + encodeURIComponent(p) + ($("showHidden").checked ? "&showHidden=true" : "");
+      const r = await api.get("/api/browse" + q);
+      if (state.browser.path !== p) return;
+      state.browser.data = r;
+      state.browser.path = r.path || p;
+      state.browser.parent = r.parent || null;
+      state.browser.root = r.root || "";
+      state.browser.entries = Array.isArray(r.entries) ? r.entries : [];
+      $("pathInput").value = state.browser.path;
+      renderCrumbs(state.browser.path);
+      renderBrowse();
+      if (r.truncated) warn("目录条目过多，结果已被截断");
+    } catch (e) {
+      state.browser.entries = []; renderBrowse(); err("浏览失败：" + apiErr(e));
+    }
+  }
+
+  $("btnGo").addEventListener("click", () => { const v = $("pathInput").value.trim(); if (v) setBrowserPath(v, true); });
+  $("pathInput").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); $("btnGo").click(); } });
+  $("btnUp").addEventListener("click", () => {
+    if (state.browser.parent) setBrowserPath(state.browser.parent, true);
+    else warn("已在授权根目录，无法继续向上");
+  });
+  $("btnBrowseReload").addEventListener("click", () => { if (state.browser.path) loadBrowse(); else loadRoots(); });
+  $("showHidden").addEventListener("change", () => { if (state.browser.path) loadBrowse(); });
+  $("btnRootsReload").addEventListener("click", loadRoots);
+  $("btnRefreshAll").addEventListener("click", async () => { await Promise.all([loadRoots(), loadMe(), loadTotp()]); if (state.browser.path) await loadBrowse(); ok("已刷新"); });
+
+  $("btnAll").addEventListener("click", () => {
+    for (const en of state.browser.entries) state.sel.set(en.path, en.type);
+    renderBrowse();
+  });
+  $("btnInvert").addEventListener("click", () => {
+    for (const en of state.browser.entries) {
+      if (state.sel.has(en.path)) state.sel.delete(en.path); else state.sel.set(en.path, en.type);
+    }
+    renderBrowse();
+  });
+  $("btnClear").addEventListener("click", () => { state.sel.clear(); renderBrowse(); });
+  $("chkAllHead").addEventListener("change", () => {
+    if ($("chkAllHead").checked) { for (const en of state.browser.entries) state.sel.set(en.path, en.type); }
+    else state.sel.clear();
+    renderBrowse();
+  });
+
+  /* ===================================================================== */
+  /* 7. 搜索 / 递归列举                                                    */
+  /* ===================================================================== */
+  function parsePaths(text, fallback) {
+    const list = uniq(String(text || "").split(/[\n,]/).map((s) => s.trim()).filter(Boolean));
+    if (list.length) return list;
+    return fallback ? [fallback] : [];
+  }
+
+  $("searchForm").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const paths = parsePaths($("fPaths").value, state.browser.path || "@roots");
+    const exts = uniq($("fExt").value.split(",").map((s) => s.trim()).filter(Boolean));
+    const body = {
+      paths: paths,
+      recursive: $("fRecursive").checked,
+      includeDirs: true,
+      showHidden: $("showHidden").checked,
+    };
+    if (exts.length) body.extensions = exts;
+    const nm = $("fName").value.trim();
+    if (nm) body.nameContains = nm;
+    const mn = $("fMin").value.trim(), mx = $("fMax").value.trim(), lm = $("fLimit").value.trim();
+    if (mn !== "") body.minSize = Number(mn) || 0;
+    if (mx !== "") body.maxSize = Number(mx) || 0;
+    if (lm !== "") body.limit = Number(lm) || 0;
+
+    const btn = $("btnSearch"), prev = btn.textContent;
+    btn.disabled = true; btn.textContent = "搜索中…";
+    notice($("searchNotice"), "warn", "正在列举，请稍候…");
+    try {
+      const r = await api.post("/api/files/list", body);
+      state.results = Array.isArray(r.files) ? r.files : [];
+      $("searchStat").textContent = "命中 " + (r.count != null ? r.count : state.results.length) + " 项 · 合计 " +
+        fmtBytes(r.totalSize) + " · 扫描 " + (r.scanned != null ? r.scanned : "—") + " 项";
+      renderResults();
+      const errs = Array.isArray(r.errors) ? r.errors : [];
+      if (r.truncated || errs.length) {
+        const msg = (r.truncated ? "结果已达到 limit 被截断，请缩小搜索范围。 " : "") +
+                    (errs.length ? "有 " + errs.length + " 个路径读取失败：" : "");
+        notice($("searchNotice"), r.truncated ? "warn" : "err", msg,
+          errs.slice(0, 20).map((x) => (x.path || "") + " — " + (x.message || "")));
+      } else {
+        notice($("searchNotice"), "ok", "搜索完成，共 " + state.results.length + " 项。");
+      }
+    } catch (e) {
+      state.results = []; renderResults();
+      notice($("searchNotice"), "err", "搜索失败：" + apiErr(e));
+      err("搜索失败：" + apiErr(e));
+    } finally { btn.disabled = false; btn.textContent = prev; }
+  });
+
+  function sortResults() {
+    const k = state.resSort.k, dir = state.resSort.dir;
+    state.results.sort((a, b) => {
+      let x = a[k], y = b[k];
+      if (k === "mtime") { x = Date.parse(x || 0) || 0; y = Date.parse(y || 0) || 0; }
+      else if (k === "size") { x = Number(x) || 0; y = Number(y) || 0; }
+      else { x = String(x || "").toLowerCase(); y = String(y || "").toLowerCase(); }
+      return x < y ? -dir : x > y ? dir : 0;
+    });
+  }
+
+  function renderResults() {
+    const tb = $("resBody");
+    tb.textContent = "";
+    const empty = $("resEmpty");
+    empty.classList.toggle("hidden", state.results.length > 0);
+    if (!state.results.length) {
+      empty.textContent = $("searchStat").textContent ? "没有匹配结果。" : "尚未搜索。";
+      renderSelection();
+      return;
+    }
+    sortResults();
+    for (const f of state.results) {
+      const tr = document.createElement("tr");
+
+      const tdC = document.createElement("td"); tdC.className = "tight";
+      const cb = document.createElement("input");
+      cb.type = "checkbox"; cb.checked = state.sel.has(f.path);
+      cb.addEventListener("change", () => {
+        if (cb.checked) state.sel.set(f.path, f.type); else state.sel.delete(f.path);
+        renderSelection();
+      });
+      tdC.appendChild(cb); tr.appendChild(tdC);
+
+      const tdP = document.createElement("td"); tdP.className = "trunc";
+      const sp = document.createElement("span"); sp.className = "mono"; sp.textContent = f.path;
+      sp.title = f.path + (f.root ? "（根：" + f.root + "）" : "");
+      tdP.appendChild(sp); tr.appendChild(tdP);
+
+      const tdS = document.createElement("td"); tdS.className = "tight";
+      tdS.textContent = f.type === "dir" ? "—" : fmtBytes(f.size); tr.appendChild(tdS);
+
+      const tdM = document.createElement("td"); tdM.className = "tight"; tdM.textContent = fmtTime(f.mtime); tr.appendChild(tdM);
+
+      const tdT = document.createElement("td"); tdT.className = "tight";
+      tdT.textContent = typeLabel(f.type) + (f.isSymlink ? " · 链接" : ""); tr.appendChild(tdT);
+
+      tb.appendChild(tr);
+    }
+    renderSelection();
+  }
+
+  document.querySelectorAll("th.sortable").forEach((th) => {
+    th.addEventListener("click", () => {
+      const k = th.getAttribute("data-k");
+      if (state.resSort.k === k) state.resSort.dir *= -1;
+      else { state.resSort.k = k; state.resSort.dir = 1; }
+      document.querySelectorAll("th.sortable .arw").forEach((a) => { a.textContent = ""; });
+      const arw = th.querySelector(".arw");
+      if (arw) arw.textContent = state.resSort.dir === 1 ? "▲" : "▼";
+      renderResults();
+    });
+  });
+  $("chkResHead").addEventListener("change", () => {
+    if ($("chkResHead").checked) { for (const f of state.results) state.sel.set(f.path, f.type); }
+    else { for (const f of state.results) state.sel.delete(f.path); }
+    renderResults();
+    const tb = $("browseBody");
+    if (tb) renderBrowse();
+  });
+
+  /* ===================================================================== */
+  /* 8. 下载                                                               */
+  /* ===================================================================== */
+  function filenameFromCD(cd) {
+    if (!cd) return "";
+    let m = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(cd);
+    if (m) { try { return decodeURIComponent(m[1].trim().replace(/^"|"$/g, "")); } catch (e) { /* 继续 */ } }
+    m = /filename\s*=\s*"([^"]*)"/i.exec(cd) || /filename\s*=\s*([^;]+)/i.exec(cd);
+    if (m) {
+      const raw = m[1].trim().replace(/^"|"$/g, "");
+      try { return decodeURIComponent(raw); } catch (e) { return raw; }
+    }
+    return "";
+  }
+  function saveBlob(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = name || "download"; a.rel = "noopener";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  }
+  function triggerGet(url) {
+    const a = document.createElement("a");
+    a.href = url; a.rel = "noopener";
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  $("btnDownload").addEventListener("click", async () => {
+    const paths = Array.from(state.sel.keys());
+    if (!paths.length) { warn("请先勾选要下载的文件或目录"); return; }
+    const single = paths.length === 1 && state.sel.get(paths[0]) !== "dir";
+    if (single) {
+      triggerGet("/api/files/download?path=" + encodeURIComponent(paths[0]) + "&token=" + encodeURIComponent(getToken()));
+      ok("已开始下载：" + paths[0]);
+      return;
+    }
+    const btn = $("btnDownload"), prev = btn.textContent;
+    btn.disabled = true; btn.textContent = "打包中…";
+    try {
+      const res = await apiFetch("/api/files/download", {
+        method: "POST", json: { paths: paths, recursive: true, showHidden: $("showHidden").checked }, raw: true,
+      });
+      const blob = await res.blob();
+      const name = filenameFromCD(res.headers.get("content-disposition")) ||
+                   (paths.length > 1 ? "files.zip" : (paths[0].split("/").pop() || "download"));
+      saveBlob(blob, name);
+      ok("已开始下载：" + name + "（" + fmtBytes(blob.size) + "）");
+    } catch (e) {
+      err("下载失败：" + apiErr(e));
+    } finally { btn.disabled = false; btn.textContent = prev; }
+  });
+
+  /* ===================================================================== */
+  /* 9. 删除（高危，需 TOTP 确认）                                         */
+  /* ===================================================================== */
+  function openDeleteModal() {
+    const paths = Array.from(state.sel.keys());
+    if (!paths.length) { warn("请先勾选要删除的文件或目录"); return; }
+    $("delCount").textContent = String(paths.length);
+    const box = $("delPaths"); box.textContent = "";
+    for (const p of paths) {
+      const d = document.createElement("div");
+      d.textContent = p + (state.sel.get(p) === "dir" ? "  [目录]" : "");
+      box.appendChild(d);
+    }
+    $("delRecursive").checked = false;
+    $("delTotp").value = "";
+    notice($("delMsg"), false);
+    const rr = $("delResult"); rr.textContent = ""; rr.classList.add("hidden");
+    $("delConfirm").disabled = false; $("delConfirm").textContent = "确认删除";
+    $("delMask").classList.remove("hidden");
+    $("delTotp").focus();
+  }
+  function closeDeleteModal() { $("delMask").classList.add("hidden"); }
+
+  $("btnDelete").addEventListener("click", openDeleteModal);
+  $("delCancel").addEventListener("click", closeDeleteModal);
+  $("delMask").addEventListener("click", (ev) => { if (ev.target === $("delMask")) closeDeleteModal(); });
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !$("delMask").classList.contains("hidden")) closeDeleteModal(); });
+  $("delTotp").addEventListener("input", () => { $("delTotp").value = $("delTotp").value.replace(/\D/g, "").slice(0, 6); });
+  $("delTotp").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); $("delConfirm").click(); } });
+
+  $("delConfirm").addEventListener("click", async () => {
+    const paths = Array.from(state.sel.keys());
+    if (!paths.length) { closeDeleteModal(); return; }
+    const code = $("delTotp").value.trim();
+    if (!/^\d{6}$/.test(code)) { notice($("delMsg"), "err", "请输入 6 位数字 TOTP 验证码"); return; }
+    notice($("delMsg"), false);
+    const btn = $("delConfirm");
+    btn.disabled = true; btn.textContent = "删除中…";
+    try {
+      const r = await api.post("/api/files/delete", { paths: paths, totp: code, recursive: $("delRecursive").checked });
+      const deleted = Array.isArray(r.deleted) ? r.deleted : [];
+      const failed = Array.isArray(r.failed) ? r.failed : [];
+      deleted.forEach((d) => state.sel.delete(d.path));
+      failed.forEach((f) => state.sel.delete(f.path));
+      if (failed.length) err("删除部分失败：" + failed.length + " 项未删除"); else ok("已删除 " + deleted.length + " 项");
+      closeDeleteModal();
+      await Promise.all([renderDeleteSummary(deleted, failed, r.count), refreshBrowser()]);
+    } catch (e) {
+      const code2 = e && e.api ? e.api.code : "";
+      const extra = code2 === "TOTP_NOT_ENABLED" ? "请先在下方 TOTP 面板完成绑定与激活。"
+                  : code2 === "TOTP_INVALID" ? "验证码错误、已过期或已被使用（同一验证码不可重放）。"
+                  : code2 === "ROOT_DELETE_FORBIDDEN" ? "不允许删除被授权的根目录本身。"
+                  : code2 === "DIRECTORY_NOT_EMPTY" ? "目录非空，请勾选“递归删除目录内容”。"
+                  : code2 === "PATH_NOT_ALLOWED" ? "路径不在允许的根目录内。" : "";
+      notice($("delMsg"), "err", apiErr(e) + (extra ? " — " + extra : ""));
+      err("删除失败：" + apiErr(e));
+    } finally { btn.disabled = false; btn.textContent = "确认删除"; }
+  });
+
+  /* 删除结果在浏览面板内持久展示（确认弹窗已关闭） */
+  const delSummary = document.createElement("div");
+  delSummary.className = "hidden";
+  delSummary.style.padding = "0 0 12px";
+  $("browseEmpty").after(delSummary);
+
+  async function refreshBrowser() {
+    if (state.browser.path) await loadBrowse(); else renderBrowse();
+    renderResults();
+  }
+  async function renderDeleteSummary(deleted, failed, count) {
+    delSummary.textContent = "";
+    delSummary.classList.remove("hidden");
+    const h = document.createElement("div"); h.className = "hint";
+    h.textContent = "最近一次删除：成功 " + deleted.length + " 项，失败 " + failed.length +
+      " 项（响应 count=" + (count != null ? count : deleted.length) + "）";
+    const okN = document.createElement("div"); okN.className = "notice ok";
+    const ul1 = document.createElement("ul");
+    deleted.slice(0, 50).forEach((d) => { const li = document.createElement("li"); li.textContent = "✓ " + d.path + "（" + typeLabel(d.type) + "，" + fmtBytes(d.size) + "）"; ul1.appendChild(li); });
+    if (deleted.length > 50) { const li = document.createElement("li"); li.textContent = "… 其余 " + (deleted.length - 50) + " 项省略"; ul1.appendChild(li); }
+    if (!deleted.length) { const li = document.createElement("li"); li.textContent = "无"; ul1.appendChild(li); }
+    okN.appendChild(ul1);
+    delSummary.append(h, okN);
+    if (failed.length) {
+      const erN = document.createElement("div"); erN.className = "notice err";
+      const ul2 = document.createElement("ul");
+      failed.forEach((f) => { const li = document.createElement("li"); li.textContent = "✗ " + f.path + " — " + (f.code ? "[" + f.code + "] " : "") + (f.message || ""); ul2.appendChild(li); });
+      erN.appendChild(ul2); delSummary.appendChild(erN);
+    }
+  }
+
+  /* ===================================================================== */
+  /* 10. TOTP 面板                                                         */
+  /* ===================================================================== */
+  async function loadTotp() {
+    const body = $("totpBody");
+    body.textContent = "加载中…";
+    try {
+      const s = await api.get("/api/totp/status");
+      state.totp = s;
+      renderTotpChip(s.configured, s.enabled);
+      renderTotp(s);
+    } catch (e) {
+      body.textContent = ""; err("读取 TOTP 状态失败：" + apiErr(e));
+    }
+  }
+
+  function paramTable(s) {
+    const rows = [
+      ["发行方 issuer", s.issuer], ["账号 account", s.account],
+      ["位数 digits", s.digits], ["周期 period（秒）", s.period], ["算法 algorithm", s.algorithm],
+      ["创建时间", s.createdAt ? fmtTime(s.createdAt) : ""],
+      ["激活时间", s.enabled ? (s.enabledAt ? fmtTime(s.enabledAt) : "—") : ""],
+    ].filter((r) => r[1] !== undefined && r[1] !== null && r[1] !== "");
+    const t = document.createElement("table");
+    const tb = document.createElement("tbody");
+    fillRows(tb, false, rows);
+    t.appendChild(tb);
+    return t;
+  }
+
+  function secretBox(secret) {
+    const wrap = document.createElement("div");
+    const lab = document.createElement("label"); lab.className = "f"; lab.textContent = "密钥（手动输入到验证器）";
+    const box = document.createElement("div"); box.className = "row";
+    const sec = document.createElement("div"); sec.className = "secret grow"; sec.textContent = secret; sec.id = "totpSecret";
+    const copy = document.createElement("button"); copy.type = "button"; copy.className = "btn sm"; copy.textContent = "复制";
+    copy.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(secret); ok("密钥已复制到剪贴板"); }
+      catch (e) {
+        try {
+          const ta = document.createElement("textarea");
+          ta.value = secret; document.body.appendChild(ta); ta.select();
+          document.execCommand("copy"); ta.remove(); ok("密钥已复制到剪贴板");
+        } catch (e2) { warn("复制失败，请手动选择密钥文本"); }
+      }
+    });
+    box.append(sec, copy); wrap.append(lab, box);
+    return wrap;
+  }
+  function qrBox(dataUrl) {
+    const wrap = document.createElement("div");
+    const lab = document.createElement("label"); lab.className = "f"; lab.textContent = "二维码（用验证器 App 扫描）";
+    const img = document.createElement("img");
+    img.className = "qr"; img.alt = "TOTP 二维码";
+    if (dataUrl) img.src = dataUrl;
+    else img.src = "/api/totp/qrcode?token=" + encodeURIComponent(getToken());
+    img.addEventListener("error", () => { img.replaceWith(document.createTextNode("二维码加载失败，请使用上方密钥手动添加。")); });
+    wrap.append(lab, img);
+    return wrap;
+  }
+  function codeInput(id, placeholder) {
+    const inp = document.createElement("input");
+    inp.type = "text"; inp.id = id; inp.className = "mono"; inp.maxLength = 6;
+    inp.setAttribute("inputmode", "numeric"); inp.setAttribute("autocomplete", "one-time-code");
+    inp.placeholder = placeholder || "123456"; inp.style.letterSpacing = ".25em"; inp.style.maxWidth = "180px";
+    inp.addEventListener("input", () => { inp.value = inp.value.replace(/\D/g, "").slice(0, 6); });
+    return inp;
+  }
+  function noticeEl() { const d = document.createElement("div"); d.className = "notice err hidden"; return d; }
+
+  function renderTotp(s) {
+    const body = $("totpBody");
+    body.textContent = "";
+    const defaults = { issuer: s.issuer || "file-manage", account: s.account || state.username || "—", digits: s.digits || 6, period: s.period || 30, algorithm: s.algorithm || "SHA1" };
+
+    if (!s.configured) {
+      const p = document.createElement("p"); p.className = "hint";
+      p.textContent = "尚未生成 TOTP 密钥。生成后请用验证器 App 扫码并输入 6 位验证码完成激活；激活后删除接口才可使用。";
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.className = "btn pri"; btn.textContent = "生成密钥";
+      const msg = noticeEl();
+      btn.addEventListener("click", async () => {
+        btn.disabled = true; btn.textContent = "生成中…";
+        try {
+          state.setup = await api.post("/api/totp/setup", {});
+          ok("密钥已生成，请扫码并激活");
+          await loadTotp();
+        } catch (e) {
+          const c = e && e.api ? e.api.code : "";
+          notice(msg, "err", apiErr(e) + (c === "TOTP_ALREADY_CONFIGURED" ? " —— 密钥已存在，且不提供在线重置接口。如需重置请在服务器上执行：node dist/cli/totp.js reset" : ""));
+          btn.disabled = false; btn.textContent = "生成密钥";
+        }
+      });
+      body.append(p, btn, msg, document.createElement("hr"), paramTable(defaults));
+      return;
+    }
+
+    if (!s.enabled) {
+      const p = document.createElement("p"); p.className = "hint";
+      p.textContent = "密钥已生成但尚未激活。用验证器 App 扫描二维码或手动录入密钥，然后输入当前 6 位验证码完成激活。若密钥已丢失，只能在服务器上执行 node dist/cli/totp.js reset 后重新生成。";
+      const setup = state.setup;
+      const qr = qrBox(setup && setup.qrCodeDataUrl);
+      const act = document.createElement("div"); act.style.marginTop = "14px";
+      const lab = document.createElement("label"); lab.className = "f"; lab.setAttribute("for", "totpVerifyCode");
+      lab.textContent = "激活：输入验证器当前 6 位验证码";
+      const row = document.createElement("div"); row.className = "row";
+      const inp = codeInput("totpVerifyCode");
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.className = "btn pri"; btn.textContent = "激活 TOTP";
+      const msg = noticeEl();
+      btn.addEventListener("click", async () => {
+        const code = inp.value.trim();
+        if (!/^\d{6}$/.test(code)) { notice(msg, "err", "请输入 6 位数字验证码"); return; }
+        btn.disabled = true; btn.textContent = "验证中…";
+        try {
+          await api.post("/api/totp/verify", { code: code });
+          state.setup = null; notice(msg, false);
+          ok("TOTP 已激活，现在可以执行删除操作");
+          await loadTotp();
+        } catch (e) {
+          notice(msg, "err", apiErr(e));
+          btn.disabled = false; btn.textContent = "激活 TOTP";
+        }
+      });
+      row.append(inp, btn);
+      act.append(lab, row, msg);
+      body.appendChild(p);
+      if (setup && setup.secret) {
+        const note = document.createElement("p"); note.className = "hint";
+        note.textContent = "以下为本次刚生成的密钥（离开本页后不再显示，请立即保存）：";
+        body.append(note, secretBox(setup.secret));
+      }
+      body.append(qr, act, paramTable(s));
+      return;
+    }
+
+    const p = document.createElement("p");
+    p.className = "notice ok"; p.style.margin = "0 0 12px";
+    p.textContent = "TOTP 二次验证已启用：删除等高风险操作需要输入验证器 App 中的 6 位验证码（30 秒内有效，同一验证码不可重放）。";
+    const note = document.createElement("p"); note.className = "hint";
+    note.innerHTML = "重置说明：出于安全考虑，本控制台<b>不提供在线重置/重新生成密钥</b>功能。如需重置，请登录服务器执行 <code>node dist/cli/totp.js reset</code>（查看状态：<code>node dist/cli/totp.js status</code>），重置后需重新生成并激活。";
+    body.append(p, note, paramTable(s));
+  }
+
+  $("btnTotpReload").addEventListener("click", loadTotp);
+
+  /* ===================================================================== */
+  /* 11. API 速查                                                          */
+  /* ===================================================================== */
+  const HELP = [
+    ["POST", "/api/auth/login", "账号密码登录，返回 JWT（无需认证，受登录频率限制）"],
+    ["GET", "/api/auth/me", "当前登录用户与 TOTP 状态（configured / enabled）"],
+    ["POST", "/api/auth/logout", "注销当前令牌（服务端按 jti 撤销）"],
+    ["GET", "/api/roots", "列出 ALLOWED_ROOTS 授权根目录及其容量、可读性"],
+    ["GET", "/api/browse?path=&showHidden=", "浏览单个目录的直接子项；不带 path 时返回根目录列表"],
+    ["POST", "/api/files/list", "多路径递归/非递归列举，支持 @roots、扩展名、名称、大小过滤与 limit"],
+    ["GET", "/api/files?path=&recursive=&extensions=", "等价于 list 的单路径 GET 版本"],
+    ["GET", "/api/files/download?path=&token=", "下载单个文件（支持 Range 与 ?token=）"],
+    ["POST", "/api/files/download", "多选打包 zip 下载；仅一个文件时返回该文件（可选 recursive/showHidden）"],
+    ["POST", "/api/files/delete", "高危：按 paths 删除，需 totp 验证码；返回 deleted / failed（也支持 DELETE /api/files）"],
+    ["GET", "/api/totp/status", "TOTP 配置与启用状态及默认参数"],
+    ["POST", "/api/totp/setup", "生成 TOTP 密钥与二维码（只能生成一次，409 TOTP_ALREADY_CONFIGURED）"],
+    ["GET", "/api/totp/qrcode?token=", "返回当前密钥二维码 PNG（支持 ?token=，未生成时 409）"],
+    ["POST", "/api/totp/verify", "用 6 位验证码激活 TOTP（body: { code }）"],
+    ["GET", "/api/system/info", "服务名称、版本、Node 版本、运行时长与服务端限制"],
+    ["GET", "/healthz", "健康检查（无需认证）"],
+  ];
+  (function renderHelp() {
+    const tb = $("helpBody");
+    for (const [m, url, desc] of HELP) {
+      const tr = document.createElement("tr");
+      const td1 = document.createElement("td"); td1.className = "tight";
+      const sp = document.createElement("span"); sp.className = "method"; sp.textContent = m; td1.appendChild(sp);
+      const td2 = document.createElement("td");
+      const c = document.createElement("code"); c.textContent = url; td2.appendChild(c);
+      const td3 = document.createElement("td"); td3.textContent = desc;
+      tr.append(td1, td2, td3); tb.appendChild(tr);
+    }
+  })();
+
+  /* ===================================================================== */
+  /* 12. 启动                                                              */
+  /* ===================================================================== */
+  setBrowserPath("", false);
+  renderResults();
+  state.ready = true;
+  if (getToken()) { enterApp(); }
+  else { $("login").classList.remove("hidden"); $("lgUser").focus(); }
+})();
+</script>
+</body>
+</html>
